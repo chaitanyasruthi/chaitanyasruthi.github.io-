@@ -377,13 +377,15 @@
   }
   footer span{color:var(--cyan);}
 
-  /* ---------- REVEAL ANIMATION ---------- */
-  .reveal{opacity:0; transform:translateY(28px); transition:opacity 0.8s ease, transform 0.8s ease;}
-  .reveal.in{opacity:1; transform:translateY(0);}
+  /* ---------- REVEAL ANIMATION (fail-safe: visible by default) ---------- */
+  .reveal{opacity:1; transform:none;}
+  html.js-ready .reveal{opacity:0; transform:translateY(28px); transition:opacity 0.8s ease, transform 0.8s ease;}
+  html.js-ready .reveal.in{opacity:1; transform:translateY(0);}
   .no-js .reveal, .js-failed .reveal{opacity:1 !important; transform:none !important;}
 </style>
 </head>
 <body>
+<script>document.documentElement.classList.add('js-ready');</script>
 
 <nav id="navbar">
   <div class="logo">CHAITANYA<span>.</span>SRUTHI</div>
@@ -768,23 +770,30 @@ function typeLoop(){
 }
 typeLoop();
 
-// ---------- Reveal on scroll ----------
-const revealEls = document.querySelectorAll('.reveal');
-const io = new IntersectionObserver((entries) => {
-  entries.forEach(e => {
-    if(e.isIntersecting){
-      e.target.classList.add('in');
-      // trigger progress bars inside this element
-      e.target.querySelectorAll('.skill-bar-fill').forEach(bar => {
-        bar.style.width = bar.dataset.target + '%';
-      });
-      // trigger count-up numbers inside this element
-      e.target.querySelectorAll('.num[data-count]').forEach(num => animateCount(num));
-      io.unobserve(e.target);
-    }
+// ---------- Reveal on scroll (with fail-safe fallback) ----------
+try{
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if(e.isIntersecting){
+        e.target.classList.add('in');
+        e.target.querySelectorAll('.skill-bar-fill').forEach(bar => { bar.style.width = bar.dataset.target + '%'; });
+        e.target.querySelectorAll('.num[data-count]').forEach(num => animateCount(num));
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  revealEls.forEach(el => io.observe(el));
+} catch(err){ console.error('Reveal observer failed, content stays visible by default:', err); }
+
+// Hard fallback: whatever hasn't revealed itself within 2s, force it visible
+setTimeout(() => {
+  document.querySelectorAll('.reveal:not(.in)').forEach(el => {
+    el.classList.add('in');
+    el.querySelectorAll('.skill-bar-fill').forEach(bar => { if(bar.dataset.target) bar.style.width = bar.dataset.target + '%'; });
+    el.querySelectorAll('.num[data-count]').forEach(num => { if(num.textContent === '0') num.textContent = num.dataset.count; });
   });
-}, { threshold: 0.15 });
-revealEls.forEach(el => io.observe(el));
+}, 2000);
 
 function animateCount(el){
   const target = parseFloat(el.dataset.count);
